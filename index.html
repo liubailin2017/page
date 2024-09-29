@@ -1,73 +1,983 @@
-<!DOCTYPE html>
-<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        #canvas {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            position: fixed;
+            position: relative;
+        }
+        
+        .error {
+            font-family: Consolas;
+            font-size: 1.2em;
+            color: black;
+            box-sizing: border-box;
+            background-color: lightcoral;
+            border-radius: 2px;
+            border-color: lightblue;
+            border-width: thin;
+            border-style: solid;
+            line-height: 1.4em;
+            cursor:pointer;
+        }
+        .error:hover {
+            color: black;
+            background-color: brown;
+            border-color: blue;
+        }
+        #message {
+            font-family: Consolas;
+            font-size: 1.2em;
+            color: #ccc;
+            background-color: black;
+            font-weight: bold;
+            z-index: 2;
+            position: absolute;
+        }
+
+        #dat_gui_container {
+            position: absolute;
+            left: 0px;   /* position inside relatively positioned parent */
+            top: 0px;
+            z-index: 3;   /* adjust as needed */
+        }
+
+        /* Pause Button Style */
+
+        .rec_base {
+            position: absolute;
+            border: none;
+            right: 0px;
+            padding: 26px;
+            text-align: center;
+            text-decoration: none;
+            font-size: 26px;
+            border-radius: 8px;
+            margin: 8px;
+            transform: translateX(0%);
+            z-index: 1;
+        }
+        .rec_base:nth-of-type(2) {
+            top: 60px;
+        }
+        
+        /* Screenshot Button Style */
+        
+        /* Record Button Style */
+
+        /* Reload Button Style */
+    </style>
 </head>
 <body>
- 
-   
-    <!-- <div class="tip popup">
-        hello,world
-    </div> -->
-    <style>
-        * {
-            margin: 0px;
-            padding: 0px;
-        }
-        .tip {
-            
-            background-color:antiquewhite;
-            width: 100%;
-            height: 100px;
-            position: fixed;
-            bottom: -100px;
-            transition: transform 0.3s;
-        }
-        .popup {
-            transform: translateY(-100px);
-        }
-    </style>
-    <script>
-        let cnt = 0;
-        
-        setInterval(()=> {
-            if (cnt > 5) return;
-            let dom ;
-            dom = document.createElement('div')
-            dom.classList.add('tip');
-            dom.innerHTML = 'hello,wrold' + cnt;
-            cnt ++;
-            
-
-            document.querySelector('body').appendChild(
-                 dom  
-            )
-
-            setTimeout(()=> {
-               
-                let tips = document.querySelectorAll('.tip');
-                for (let i = tips.length - 1 ; i >= 0; i--) {  
-                    tips[tips.length - 1 -i].style.transform = `translateY(-${i}00px)`;  
-                }
-            },1)
-          
-
-            setTimeout(() => {
-                dom.remove();
-                let i = 0;
-                let tips = document.querySelectorAll('.tip');
-                for (let i = tips.length - 1 ; i >= 0; i--) {  
-                    tips[tips.length - 1 -i].style.transform = `translateY(-${i}00px)`;  
-                }
-            }, 3300);
-
-        
-            
-        },1000)
-      
-    </script>
+    <div id="message"></div>
+    <div id="dat_gui_container"></div>
+    <div id="container">
+        <!-- Pause Element -->
+    </div>
+    <!-- Screenshot Element -->
+    <!-- Record Element -->
+    <!-- Reload Element -->
 </body>
-</html>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/110/three.min.js"></script>
+<!-- Stats.js -->
+ 
+<!-- dat.gui -->
+
+<canvas id="canvas"></canvas>
+
+<!-- Shaders -->
+
+<script id='c:/Users/liuba/Desktop/shader/fire0.glsl' type='x-shader/x-fragment'>
+uniform vec3        iResolution;
+uniform float       iTime;
+uniform float       iTimeDelta;
+uniform int         iFrame;
+uniform vec4        iDate;
+uniform vec3        iChannelResolution[10];
+uniform vec4        iMouse;
+uniform vec4        iMouseButton;
+uniform mat4        iViewMatrix;
+uniform sampler2D   iChannel0;
+uniform sampler2D   iChannel1;
+uniform sampler2D   iChannel2;
+uniform sampler2D   iChannel3;
+uniform sampler2D   iChannel4;
+uniform sampler2D   iChannel5;
+uniform sampler2D   iChannel6;
+uniform sampler2D   iChannel7;
+uniform sampler2D   iChannel8;
+uniform sampler2D   iChannel9;
+uniform sampler2D   iKeyboard;
+uniform float       iSampleRate;
+
+#define iGlobalTime iTime
+#define iGlobalFrame iFrame
+
+#define SHADER_TOY
+
+
+  #ifndef MOVIT
+#define  SHADERTOY
+#endif
+
+#ifdef SHADERTOY
+ 
+#define getInput  shadertoyGetInput
+vec4 shadertoyGetInput(vec2 uv) {
+  return vec4(0.,0.,0.,1.);
+}
+#define PREFIX(name) name
+#endif
+
+#ifdef MOVIT
+#define getInput INPUT
+#endif
+
+//@const
+#ifndef PI
+#define PI  3.141592
+#endif
+const int PREFIX(COL_NUM) = 2;
+const vec3 PREFIX(cols)[PREFIX(COL_NUM)] = vec3[PREFIX(COL_NUM)]( 
+ vec3(.99,.80,.40)
+,vec3(.90,.5,.7)
+);
+//@end
+
+//@requisite
+vec2  PREFIX(resolution)  = vec2(800.,800.);
+vec2  PREFIX(FragCoord) = vec2(0.);
+float PREFIX(time) = 0.;
+float PREFIX(duration) = 80.;
+//@end
+
+//@optional
+//@type float
+//@name light
+//@desc 环境亮度
+float PREFIX(light) = .2;  
+
+//@optional
+//@type float
+//@name np
+//@desc 数量每6秒发射的个数
+float PREFIX(np) = 6.;
+
+#ifdef SHADERTOY
+#define texture xxx
+#define gl_FragCoord xxx
+#define iResolution xxx 
+#endif
+
+//@impl
+
+//random value
+vec2 PREFIX(N22)(vec2 p)
+{
+  vec3 a = fract(p.xyx * vec3(123.34, 234.34, 345.65));
+  a += dot(a, a + 34.45);
+  return fract(vec2(a.x * a.y, a.y * a.z));
+}
+
+float PREFIX(N21)(vec2 p)
+{
+  vec3 a = fract(p.xyx * vec3(123.34, 234.34, 345.65));
+  return fract( dot(a, a + 34.45) );  
+}
+
+float PREFIX(cheap_star)(vec2 uv, float anim,float r)
+{
+  uv = abs(uv);
+  vec2 pos = min(uv.xy/uv.yx, anim);
+  float p = (2.0 - pos.x - pos.y);
+  return clamp( (1.5+p*(p*p-1.5)) / (uv.x+uv.y),0.,1.) * r;      
+}
+
+vec4 PREFIX(burst0)(vec2 st, vec2 pos, float r, vec3 col)
+{
+  st -= pos;
+  float ani = sin(PREFIX(time) * 12.0) * 0.1 + 1.0;
+  col = PREFIX(cheap_star)(st,ani,r) * col;
+  return vec4(clamp(col,0.,1.),1.);
+}
+
+vec4 PREFIX(burst)(vec2 st, vec2 pos, float r, vec3 col)
+{
+  st -= pos;
+  // r =   pow(r,1.0);
+  /// 发光效果
+  r = (r / length(st)) * .2 ;
+  return  vec4(col*r,1.);
+}
+
+vec4 PREFIX(burst0)(vec2 st, vec2 pos,vec2 pos0,float t, float r, vec3 col)
+{
+  st -= pos;
+  // pos0 = pos - vec2(.1);
+  vec2 v = pos0 - pos;
+  float ang =  3.14 + atan(v.x ,v.y);
+  float len = length(pos0 - pos);
+  mat2 T = mat2(cos(ang),sin(ang),-sin(ang),cos(ang));
+  st = T * st;
+  t *= 5.; 
+  if(st.y < 0.) {
+    st.y *=  (1./(1. + t));
+  }
+ 
+  r = (r / length(st)) * .2 ;
+  return  vec4(col*r,1.);
+}
+
+vec4 PREFIX(difflight)(vec2 st, vec2 pos,vec3 col)
+{
+  float l = dot(vec3(0.,0.,1.),normalize( vec3(pos,5.) - vec3(st,0.) ) );
+  return vec4(col * l,1.);
+}
+
+/// s = p0 + ut + 0.5at^2
+/// 距离加速度公式
+// 初速度， 加速度 ，初始位置，时间，角度
+vec2 PREFIX(get_pos)(vec2 u, vec2 a, vec2 p0, float t, float ang)
+{
+  /// 根据初始位置、水平和垂直的速度、加速度来更新当前的位置
+  mat2 T = mat2(cos(ang),sin(ang),-sin(ang),cos(ang));
+  vec2 d = p0 + T * u * t + 0.5 * a * t * t;
+  return d;
+}
+// 
+vec2 PREFIX(get_burstpos)(vec2 u,vec2 u0, vec2 a , vec2 p0, float t, float ang)
+{
+  mat2 T = mat2(cos(ang),sin(ang),-sin(ang),cos(ang));
+  a = T * a;
+  u = T * u + u0;
+  vec2 d =  u * t + 0.5 * a * t * t; 
+  return p0 +   d;
+}
+
+// t 时刻的粒子速度
+// 初速度， 加速度 ，时间，角度
+vec2 PREFIX(get_velocity)(vec2 u, vec2 a , float t, float ang)
+{
+  /// 根据加速度、当前水平和垂直的速度来更新当前的速度
+  mat2 T = mat2(cos(ang),sin(ang),-sin(ang),cos(ang));
+  return T * u + a * t;
+}
+
+vec4 PREFIX(filte)(vec2 uv) {
+  const float snp = 20.;
+  const float R_RATIO = 0.04;
+  const float ACC_RATIO = 0.03;
+  const float ANG = 30.;
+  const vec2 acc = vec2(0.0, -9.8); ///< 重力加速度 acc
+  const float R0 = 2.;
+  vec3 col0 = getInput(uv).xyz;
+  //100m 的场景里播放烟花 
+  uv = 100. * ( (2. * PREFIX(FragCoord).xy - PREFIX(resolution).xy) /  PREFIX(resolution).y );
+  vec2 u = vec2(0.);               
+  
+  float ang =  0.;             ///< 上升粒子的发射角度
+  vec4 particles = vec4(0.0); //particle
+  vec4 dlight = vec4(0.);
+  for (float i = 0.; i < PREFIX(np); i++)
+  {    
+    float sid = i / np * 7.;
+    float t_i = PREFIX(time) - sid;
+    float tid =  floor(t_i / 7.);
+    float r = R0;
+    vec2 rand = PREFIX(N22)(vec2(sid,tid));
+    /// 初始位置
+    vec2 ip = vec2( 100. * sin(30.*rand.x), -60.);
+    /// 初速度
+    u = vec2(44.,0.);
+    ang = radians(90. + ANG * (-1. + PREFIX(N21)(vec2(sid,tid))* 2. ) );   
+
+    t_i =  mod(t_i,7.);
+    if(t_i < 0.) continue;
+    vec2 s = PREFIX(get_pos)(u, acc, ip, t_i, ang);
+    vec2 v = PREFIX(get_velocity)(u, acc, t_i, ang);
+
+    mat2 T = mat2(cos(ang),sin(ang),-sin(ang),cos(ang));
+    // 计算竖直向上的运动时间
+    float t_up = (T * u).y / abs(acc.y);
+    
+    /// 根据时间计算出向上运动的最大高度
+    vec2 h_max = PREFIX(get_pos)(u, acc, ip, t_up, ang);
+ 
+    if (t_i - t_up > 0. ) { ///< 下落速度超过一定大小则消失
+      r = 0.0;     
+    }else {
+      vec3 pcol = PREFIX(cols)[int(rand.y*float(PREFIX(COL_NUM)))];
+      vec2 t = PREFIX(get_pos)(u, acc, ip, t_i - .1, ang);
+      particles += PREFIX(burst0)(uv, s,t,(  t_up - t_i)/t_up , R0 , pcol); 
+      dlight += PREFIX(difflight)(uv,s,pcol);
+    }
+
+    // 到最高点是爆炸
+    if (t_i - t_up  > 0.  && t_i - t_up < 2.) // 炸2秒
+    {
+      /// 把一个圆根据角度分成若干份扇形
+      float unit = (360. / snp);
+      for (float j = 0.0; j < snp; j++)
+      {
+        float ang = radians(j * unit);
+        float r  = 1. - .5 * (t_i - t_up) ;
+        vec2 v0 = vec2(PREFIX(N21)(vec2(ang ,sid + tid))*.5 + .5,0.) * 50.;
+        vec2 S = PREFIX(get_burstpos)(v0,v, vec2(-12.5,0.) , h_max, t_i - t_up, ang);
+        vec2 rand = PREFIX(N22)(vec2(i));
+        vec3 pcol = PREFIX(cols)[int(rand.y*float(PREFIX(COL_NUM)))];
+        particles += PREFIX(burst)(uv, S, max(0.0, r), pcol);
+        dlight += PREFIX(difflight)(uv,S,pcol/snp);
+      }
+    }
+  }
+  return vec4( clamp( col0 * clamp( (dlight.rgb + vec3(PREFIX(light))),0.,1.) +  particles.rgb ,0.,1.) ,  1.0);
+}
+
+//@end
+#ifdef SHADERTOY
+
+#undef texture 
+#undef gl_FragCoord 
+#undef iResolution  
+
+void mainImage( out vec4 fragColor, in vec2 fragCoord )
+{
+  
+  resolution = iResolution.xy;
+  time = fract(iTime/PREFIX(duration)) * PREFIX(duration);//@0
+  FragCoord = fragCoord.xy;
+  vec2 uv = fragCoord/iResolution.xy;
+  fragColor = filte(uv );
+}
+#endif
+
+#ifdef MOVIT
+
+vec4 FUNCNAME(vec2 tc)
+{
+// @param
+#ifdef PREFIX(DEF_mov_time)
+  PREFIX(time) = PREFIX(mov_time);
+#endif
+
+#ifdef PREFIX(DEF_mov_width)
+  PREFIX(resolution).x = PREFIX(mov_width);
+#endif
+
+#ifdef PREFIX(DEF_mov_height) 
+  PREFIX(resolution).y = PREFIX(mov_height);
+#endif
+//@end
+
+//@opt
+#ifdef PREFIX(DEF_mov_light)
+  PREFIX(light) = PREFIX(mov_light);
+#endif
+
+#ifdef PREFIX(DEF_mov_np)
+  PREFIX(np) = PREFIX(np);
+#endif
+
+//@end
+
+  PREFIX(FragCoord) = PREFIX(resolution) * tc;
+  return PREFIX(filte)(tc);
+}
+
+#endif
+
+
+  
+void main() {
+    vec2 fragCoord = gl_FragCoord.xy;
+    mainImage(gl_FragColor, fragCoord);
+}
+</script>
+
+<!-- FlyControls -->
+
+<script type="text/javascript">
+    let vscode = undefined;
+    if (typeof acquireVsCodeApi === 'function') {
+        vscode = acquireVsCodeApi();
+    }
+    var compileTimePanel;
+
+    let revealError = function(line, file) {
+        if (vscode) {
+            vscode.postMessage({
+                command: 'showGlslsError',
+                line: line,
+                file: file
+            });
+        }
+    };
+
+    let currentShader = {};
+    // Error Callback
+    console.error = function () {
+        if('7' in arguments) {
+            let errorRegex = /ERROR: \d+:(\d+):\W(.*)\n/g;
+            let rawErrors = arguments[7];
+            let match;
+            
+            let diagnostics = [];
+            let message = '';
+            while(match = errorRegex.exec(rawErrors)) {
+                let lineNumber = Number(match[1]) - currentShader.LineOffset;
+                let error = match[2];
+                diagnostics.push({
+                    line: lineNumber,
+                    message: error
+                });
+                let lineHighlight = `<a class='error' unselectable onclick='revealError(${lineNumber}, "${currentShader.File}")'>Line ${lineNumber}</a>`;
+                message += `<li>${lineHighlight}: ${error}</li>`;
+            }
+            console.log(message);
+            let diagnosticBatch = {
+                filename: currentShader.File,
+                diagnostics: diagnostics
+            };
+            if (vscode !== undefined) {
+                vscode.postMessage({
+                    command: 'showGlslDiagnostic',
+                    type: 'error',
+                    diagnosticBatch: diagnosticBatch
+                });
+            }
+    
+            $('#message').append(`<h3>Shader failed to compile - ${currentShader.Name} </h3>`);
+            $('#message').append('<ul>');
+            $('#message').append(message);
+            $('#message').append('</ul>');
+        }
+    };
+
+    // Development feature: Output warnings from third-party libraries
+    // console.warn = function (message) {
+    //     $("#message").append(message + '<br>');
+    // };
+
+    let clock = new THREE.Clock();
+    let pausedTime = 0.0;
+    let deltaTime = 0.0;
+    let startingTime = 56.937100000008954;
+    let time = startingTime;
+
+    let date = new THREE.Vector4();
+
+    let updateDate = function() {
+        let today = new Date();
+        date.x = today.getFullYear();
+        date.y = today.getMonth();
+        date.z = today.getDate();
+        date.w = today.getHours() * 60 * 60 
+            + today.getMinutes() * 60
+            + today.getSeconds()
+            + today.getMilliseconds() * 0.001;
+    };
+    updateDate();
+
+    let paused = false;
+    let forceRenderOneFrame = paused;
+    let pauseButton = document.getElementById('pause-button');
+    if (pauseButton) {
+        pauseButton.checked = paused;
+        pauseButton.onclick = function(){
+            paused = pauseButton.checked;
+            if (!paused) {
+                // Audio Resume
+                pausedTime += clock.getDelta();
+            }
+            else {
+                // Audio Pause
+            }
+
+            if (vscode !== undefined) {
+                vscode.postMessage({
+                    command: 'setPause',
+                    paused: paused
+                });
+            }
+        };
+    }
+    
+    {
+        let screenshotButton = document.getElementById("screenshot");
+        if (screenshotButton) {
+            screenshotButton.addEventListener('click', saveScreenshot);
+        }
+    }
+    
+    {
+        let recordButton = document.getElementById("record");
+        if (recordButton) {
+            recordButton.addEventListener('click', recordAction);
+        }
+    }
+    
+    {
+        let reloadButton = document.getElementById("reload");
+        if (reloadButton) {
+            reloadButton.addEventListener('click', reloadWebview);
+        }
+    }
+    
+    window.addEventListener('message', event => {
+        const message = event.data; // The JSON data our extension sent
+        switch (message.command) {
+            case 'pause':
+                if (pauseButton) {
+                    pauseButton.checked = !pauseButton.checked;
+                }
+                paused = !paused;
+                if (!paused) {
+                    // Audio Resume
+                    pausedTime += clock.getDelta();
+                }
+                else {
+                    // Audio Pause
+                }
+
+                if (vscode !== undefined) {
+                    vscode.postMessage({
+                        command: 'setPause',
+                        paused: paused
+                    });
+                }
+                break;
+            case 'screenshot':
+                saveScreenshot();
+                break;
+        }
+    });
+
+    let canvas = document.getElementById('canvas');
+    let gl = canvas.getContext('webgl2');
+    let isWebGL2 = gl != null;
+    if (gl == null) gl = canvas.getContext('webgl');
+    let supportsFloatFramebuffer = (gl.getExtension('EXT_color_buffer_float') != null) || (gl.getExtension('WEBGL_color_buffer_float') != null);
+    let supportsHalfFloatFramebuffer = (gl.getExtension('EXT_color_buffer_half_float') != null);
+    let framebufferType = THREE.UnsignedByteType;
+    if (supportsFloatFramebuffer) framebufferType = THREE.FloatType;
+    else if (supportsHalfFloatFramebuffer) framebufferType = THREE.HalfFloatType;
+
+    let renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, context: gl, preserveDrawingBuffer: true });
+    let resolution = forceAspectRatio(window.innerWidth, window.innerHeight);
+    let mouse = new THREE.Vector4(-1, -1, -1, -1);
+    let mouseButton = new THREE.Vector4(0, 0, 0, 0);
+    let normalizedMouse = new THREE.Vector2(0.0017809439002671415, 0.6228070175438597);
+    let frameCounter = 0;
+    let recorder = null;
+
+    // Audio Init
+    const audioContext = {
+        sampleRate: 0
+    };
+    // Audio Resume
+
+    let buffers = [];
+    // Buffers
+    buffers.push({
+        Name: 'c:/Users/liuba/Desktop/shader/fire0.glsl',
+        File: 'c:/Users/liuba/Desktop/shader/fire0.glsl',
+        LineOffset: 134,
+        Target: null,
+        ChannelResolution: Array(10).fill(new THREE.Vector3(0,0,0)),
+        PingPongTarget: null,
+        PingPongChannel: 0,
+        Dependents: [],
+        Shader: new THREE.ShaderMaterial({
+            fragmentShader: document.getElementById('c:/Users/liuba/Desktop/shader/fire0.glsl').textContent,
+            depthWrite: false,
+            depthTest: false,
+            uniforms: {
+                iResolution: { type: 'v3', value: resolution },
+                iTime: { type: 'f', value: 0.0 },
+                iTimeDelta: { type: 'f', value: 0.0 },
+                iFrame: { type: 'i', value: 0 },
+                iMouse: { type: 'v4', value: mouse },
+                iMouseButton: { type: 'v2', value: mouseButton },
+                iViewMatrix: {type: 'm44', value: new THREE.Matrix4() },
+                iChannelResolution: { type: 'v3v', value: Array(10).fill(new THREE.Vector3(0,0,0)) },
+    
+                iDate: { type: 'v4', value: date },
+                iSampleRate: { type: 'f', value: audioContext.sampleRate },
+    
+                iChannel0: { type: 't' },
+                iChannel1: { type: 't' },
+                iChannel2: { type: 't' },
+                iChannel3: { type: 't' },
+                iChannel4: { type: 't' },
+                iChannel5: { type: 't' },
+                iChannel6: { type: 't' },
+                iChannel7: { type: 't' },
+                iChannel8: { type: 't' },
+                iChannel9: { type: 't' },
+    
+                resolution: { type: 'v2', value: resolution },
+                time: { type: 'f', value: 0.0 },
+                mouse: { type: 'v2', value: normalizedMouse },
+            }
+        })
+    });
+    let commonIncludes = [];
+    // Includes
+    
+
+    // WebGL2 inserts more lines into the shader
+    if (isWebGL2) {
+        for (let buffer of buffers) {
+            buffer.LineOffset += 16;
+        }
+    }
+
+    // Keyboard Init
+    
+    // Uniforms Init
+    // Uniforms Update
+
+    let texLoader = new THREE.TextureLoader();
+    // Texture Init
+    
+
+    let scene = new THREE.Scene();
+    let quad = new THREE.Mesh(
+        new THREE.PlaneGeometry(resolution.x, resolution.y),
+        null
+    );
+    scene.add(quad);
+
+    let controlState = new THREE.Camera();
+    controlState.position.set(0,0,0);
+    controlState.quaternion.set(0,0,0,1);
+    scene.add(controlState);
+
+    let flyControls = undefined;
+    if (typeof FlyControls === 'function') {
+        flyControls = new FlyControls(controlState, renderer.domElement, vscode);
+        flyControls.movementSpeed = 1;
+        flyControls.domElement = renderer.domElement;
+        flyControls.rollSpeed = Math.PI / 24;
+        flyControls.autoForward = false;
+        flyControls.dragToLook = true;
+    }
+
+    let camera = new THREE.OrthographicCamera(-resolution.x / 2.0, resolution.x / 2.0, resolution.y / 2.0, -resolution.y / 2.0, 1, 1000);
+    camera.position.set(0, 0, 10);
+
+    // Run every shader once to check for compile errors
+    let compileTimeStart = performance.now();
+    let failed=0;
+    for (let include of commonIncludes) {
+        currentShader = {
+            Name: include.Name,
+            File: include.File,
+            // add two for version and precision lines
+            LineOffset: 27 + 2
+        };
+        // Test Compile Included Files
+        // bail if there is an error found in the include script
+        if(compileFragShader(gl, document.getElementById(include.Name).textContent) == false) {
+            throw Error(`Failed to compile ${include.Name}`);
+        }
+    }
+
+    for (let buffer of buffers) {
+        currentShader = {
+            Name: buffer.Name,
+            File: buffer.File,
+            LineOffset: buffer.LineOffset
+        };
+        quad.material = buffer.Shader;
+        renderer.setRenderTarget(buffer.Target);
+        renderer.render(scene, camera);
+    }
+    currentShader = {};
+    let compileTimeEnd = performance.now();
+    let compileTime = compileTimeEnd - compileTimeStart;
+    if (compileTimePanel !== undefined) {
+        for (let i = 0; i < 200; i++) {
+            compileTimePanel.update(compileTime, 200);
+        }
+    }
+
+    computeSize();
+    render();
+
+    function addLineNumbers( string ) {
+        let lines = string.split( '\\n' );
+        for ( let i = 0; i < lines.length; i ++ ) {
+            lines[ i ] = ( i + 1 ) + ': ' + lines[ i ];
+        }
+        return lines.join( '\\n' );
+    }
+
+    function compileFragShader(gl, fsSource) {
+        const fs = gl.createShader(gl.FRAGMENT_SHADER);
+        gl.shaderSource(fs, fsSource);
+        gl.compileShader(fs);
+        if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
+            const fragmentLog = gl.getShaderInfoLog(fs);
+            console.error( 'THREE.WebGLProgram: shader error: ', gl.getError(), 'gl.COMPILE_STATUS', null, null, null, null, fragmentLog );
+            return false;
+        }
+        return true;
+    }
+
+    function render() {
+        requestAnimationFrame(render);
+        if (!forceRenderOneFrame) {
+            // Pause Whole Render
+            if (paused) return;
+        }
+        forceRenderOneFrame = false;
+
+        // Advance Time
+        deltaTime = clock.getDelta();
+        time = startingTime + clock.getElapsedTime() - pausedTime;
+        if (vscode !== undefined) {
+            vscode.postMessage({
+                command: 'updateTime',
+                time: time
+            });
+        }
+        updateDate();
+        
+        if(flyControls)
+        {
+            flyControls.update(0.1);
+        }
+
+        // Audio Update
+
+        for (let buffer of buffers) {
+            buffer.Shader.uniforms['iResolution'].value = resolution;
+            buffer.Shader.uniforms['iTimeDelta'].value = deltaTime;
+            buffer.Shader.uniforms['iTime'].value = time;
+            buffer.Shader.uniforms['iFrame'].value = frameCounter;
+            buffer.Shader.uniforms['iMouse'].value = mouse;
+            buffer.Shader.uniforms['iMouseButton'].value = mouseButton;
+
+            buffer.Shader.uniforms['iViewMatrix'].value = controlState.matrixWorld;
+
+            buffer.Shader.uniforms['resolution'].value = resolution;
+            buffer.Shader.uniforms['time'].value = time;
+            buffer.Shader.uniforms['mouse'].value = normalizedMouse;
+
+            quad.material = buffer.Shader;
+            renderer.setRenderTarget(buffer.Target);
+            renderer.render(scene, camera);
+        }
+        
+        // Uniforms Update
+
+        // Keyboard Update
+
+        if (mouse.w > 0.0) {
+            mouse.w = -mouse.w;
+            updateMouse();
+        }
+
+        for (let buffer of buffers) {
+            if (buffer.PingPongTarget) {
+                [buffer.PingPongTarget, buffer.Target] = [buffer.Target, buffer.PingPongTarget];
+                buffer.Shader.uniforms[`iChannel${buffer.PingPongChannel}`].value = buffer.PingPongTarget.texture;
+                for (let dependent of buffer.Dependents) {
+                    const dependentBuffer = buffers[dependent.Index];
+                    dependentBuffer.Shader.uniforms[`iChannel${dependent.Channel}`].value = buffer.Target.texture;
+                }
+            }
+        }
+
+        frameCounter++;
+    }
+    function forceAspectRatio(width, height) {
+        // Forced aspect ratio
+        let forcedAspects = [0,0];
+        let forcedAspectRatio = forcedAspects[0] / forcedAspects[1];
+        let aspectRatio = width / height;
+
+        if (forcedAspectRatio <= 0 || !isFinite(forcedAspectRatio)) {
+            let resolution = new THREE.Vector3(width, height, 1.0);
+            return resolution;
+        }
+        else if (aspectRatio < forcedAspectRatio) {
+            let resolution = new THREE.Vector3(width, Math.floor(width / forcedAspectRatio), 1);
+            return resolution;
+        }
+        else {
+            let resolution = new THREE.Vector3(Math.floor(height * forcedAspectRatio), height, 1);
+            return resolution;
+        }
+    }
+    function computeSize() {
+        
+        // Compute forced aspect ratio and align canvas
+        resolution = forceAspectRatio(window.innerWidth, window.innerHeight);
+        canvas.style.left = `${(window.innerWidth - resolution.x) / 2}px`;
+        canvas.style.top = `${(window.innerHeight - resolution.y) / 2}px`;
+
+        for (let buffer of buffers) {
+            if (buffer.Target) {
+                buffer.Target.setSize(resolution.x, resolution.y);
+            }
+            if (buffer.PingPongTarget) {
+                buffer.PingPongTarget.setSize(resolution.x, resolution.y);
+            }
+        }
+        renderer.setSize(resolution.x, resolution.y, false);
+        
+        // Update Camera and Mesh
+        quad.geometry = new THREE.PlaneGeometry(resolution.x, resolution.y);
+        camera.left = -resolution.x / 2.0;
+        camera.right = resolution.x / 2.0;
+        camera.top = resolution.y / 2.0;
+        camera.bottom = -resolution.y / 2.0;
+        camera.updateProjectionMatrix();
+
+        // Reset iFrame on resize for shaders that rely on first-frame setups
+        frameCounter = 0;
+    }
+    function saveScreenshot() {
+        let doSaveScreenshot = () => {
+            renderer.domElement.toBlob(function(blob){
+                let a = document.createElement('a');
+                let url = URL.createObjectURL(blob);
+                a.href = url;
+                a.download = 'shadertoy.png';
+                a.click();
+            }, 'image/png', 1.0);
+        };
+
+        let forcedScreenshotResolution = [0,0];
+        if (forcedScreenshotResolution[0] <= 0 || forcedScreenshotResolution[1] <= 0) {
+            renderer.render(scene, camera);
+            doSaveScreenshot();
+        }
+        else {
+            renderer.setSize(forcedScreenshotResolution[0], forcedScreenshotResolution[1], false);
+            
+            for (let buffer of buffers) {
+                buffer.Shader.uniforms['iResolution'].value = new THREE.Vector3(forcedScreenshotResolution[0], forcedScreenshotResolution[1], 1);
+                buffer.Shader.uniforms['resolution'].value = new THREE.Vector3(forcedScreenshotResolution[0], forcedScreenshotResolution[1], 1);
+
+                quad.material = buffer.Shader;
+                renderer.setRenderTarget(buffer.Target);
+                renderer.render(scene, camera);
+            }
+
+            doSaveScreenshot();
+            renderer.setSize(resolution.x, resolution.y, false);
+        }
+    }
+    function recordAction() {
+        let recordButton = document.getElementById("record");
+        if (recorder == null) {
+            recordButton.classList.add('recording');
+
+            let stream = canvas.captureStream(30);
+            let recorderOptions = {
+                mimeType: "video/webm"
+            };
+            recorder = new MediaRecorder(stream, recorderOptions);
+            recorder.start();
+            recorder.ondataavailable = function(evt) {
+                let a = document.createElement('a');
+                let url = URL.createObjectURL(evt.data);
+                a.href = url;
+                a.download = 'shadertoy.webm';
+                a.click();
+            };
+        }
+        else {
+            recordButton.classList.remove('recording');
+
+            recorder.stop();
+            recorder = null;
+        }
+    }
+    function reloadWebview() {
+        if (vscode !== undefined) {
+            vscode.postMessage({ command: 'reloadWebview' });
+        }
+    }
+    function updateMouse() {
+        if (vscode !== undefined) {
+            vscode.postMessage({
+                command: 'updateMouse',
+                mouse: {
+                    x: mouse.x,
+                    y: mouse.y,
+                    z: mouse.z,
+                    w: mouse.w
+                },
+                normalizedMouse: {
+                    x: normalizedMouse.x,
+                    y: normalizedMouse.y
+                }
+            });
+        }
+    }
+    let dragging = false;
+    function updateNormalizedMouseCoordinates(clientX, clientY) {
+        let rect = canvas.getBoundingClientRect();
+        let mouseX = clientX - rect.left;
+        let mouseY = resolution.y - clientY - rect.top;
+
+        if (mouseButton.x + mouseButton.y != 0) {
+            mouse.x = mouseX;
+            mouse.y = mouseY;
+        }
+
+        normalizedMouse.x = mouseX / resolution.x;
+        normalizedMouse.y = mouseY / resolution.y;
+    }
+    canvas.addEventListener('mousemove', function(evt) {
+        updateNormalizedMouseCoordinates(evt.clientX, evt.clientY);
+        updateMouse();
+    }, false);
+    canvas.addEventListener('mousedown', function(evt) {
+        if (evt.button == 0)
+            mouseButton.x = 1;
+        if (evt.button == 2)
+            mouseButton.y = 1;
+
+        if (!dragging) {
+            updateNormalizedMouseCoordinates(evt.clientX, evt.clientY);
+            mouse.z = mouse.x;
+            mouse.w = mouse.y;
+            dragging = true
+        }
+
+        updateMouse();
+    }, false);
+    canvas.addEventListener('mouseup', function(evt) {
+        if (evt.button == 0)
+            mouseButton.x = 0;
+        if (evt.button == 2)
+            mouseButton.y = 0;
+
+        dragging = false;
+        mouse.z = -mouse.z;
+        mouse.w = -mouse.w;
+
+        updateMouse();
+    }, false);
+    window.addEventListener('resize', function() {
+        computeSize();
+    });
+
+    // Keyboard Callbacks
+</script>
