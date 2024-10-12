@@ -90,7 +90,6 @@
 </body>
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/110/three.min.js"></script>
-<!-- Stats.js -->
  
 <!-- dat.gui -->
 
@@ -127,17 +126,17 @@ uniform float       iSampleRate;
 #define SHADER_TOY
 
 
-  #ifndef MOVIT
-#define  SHADERTOY
+#ifndef MOVIT
+  
+  #define  SHADERTOY
 #endif
 
 #ifdef SHADERTOY
- 
-#define getInput  shadertoyGetInput
-vec4 shadertoyGetInput(vec2 uv) {
-  return vec4(0.,0.,0.,1.);
-}
-#define PREFIX(name) name
+  #define getInput  shadertoyGetInput
+  vec4 shadertoyGetInput(vec2 uv) {
+    return texture(iChannel0,uv);
+  }
+  #define PREFIX(name) name
 #endif
 
 #ifdef MOVIT
@@ -472,7 +471,7 @@ void main() {
     let clock = new THREE.Clock();
     let pausedTime = 0.0;
     let deltaTime = 0.0;
-    let startingTime = 56.937100000008954;
+    let startingTime = 309.6803999999752;
     let time = startingTime;
 
     let date = new THREE.Vector4();
@@ -575,9 +574,9 @@ void main() {
 
     let renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, context: gl, preserveDrawingBuffer: true });
     let resolution = forceAspectRatio(window.innerWidth, window.innerHeight);
-    let mouse = new THREE.Vector4(-1, -1, -1, -1);
+    let mouse = new THREE.Vector4(2, 327, -2, -327);
     let mouseButton = new THREE.Vector4(0, 0, 0, 0);
-    let normalizedMouse = new THREE.Vector2(0.0017809439002671415, 0.6228070175438597);
+    let normalizedMouse = new THREE.Vector2(0.00909090909090909, 0.624113475177305);
     let frameCounter = 0;
     let recorder = null;
 
@@ -650,7 +649,45 @@ void main() {
 
     let texLoader = new THREE.TextureLoader();
     // Texture Init
+    buffers[0].ChannelResolution[0] = null;
+    buffers[0].Shader.uniforms.iChannelResolution.value = buffers[0].ChannelResolution;
+    buffers[0].Shader.uniforms.iChannel0 = { type: 't', value: texLoader.load('borad.jpg', function(texture) {
+        function isPowerOfTwo(n) {
+        return n && (n & (n - 1)) === 0;
+    };
+    if (!isPowerOfTwo(texture.image.width) || !isPowerOfTwo(texture.image.height)) {
+        let diagnostics = [];
+        
+        
+        
+        let diagnosticBatch = {
+            filename: 'c:/Users/liuba/Desktop/shader/fire0.glsl',
+            diagnostics: diagnostics
+        };
+        if (vscode !== undefined) {
+            vscode.postMessage({
+                command: 'showGlslDiagnostic',
+                type: 'warning',
+                diagnosticBatch: diagnosticBatch
+            });
+        }
+    };
+    buffers[0].ChannelResolution[0] = new THREE.Vector3(texture.image.width, texture.image.height, 1);
+    buffers[0].Shader.uniforms.iChannelResolution.value = buffers[0].ChannelResolution;
     
+        texture.magFilter = THREE.LinearFilter;
+        texture.minFilter = THREE.LinearFilter;
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+    }, undefined, function(err) {
+        console.log(err);
+        if (vscode !== undefined) {
+            vscode.postMessage({
+                command: 'errorMessage',
+                message: 'Failed loading texture file  borad.jpg'
+            });
+        }
+    }) };
 
     let scene = new THREE.Scene();
     let quad = new THREE.Mesh(
