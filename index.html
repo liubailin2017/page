@@ -627,7 +627,7 @@ void main() {
     // Texture Init
     buffers[0].ChannelResolution[0] = null;
     buffers[0].Shader.uniforms.iChannelResolution.value = buffers[0].ChannelResolution;
-    buffers[0].Shader.uniforms.iChannel0 = { type: 't', value: texLoader.load('borad.jpg', function(texture) {
+    buffers[0].Shader.uniforms.iChannel0 = { type: 't', value: texLoader.load('borad0.jpg', function(texture) {
         function isPowerOfTwo(n) {
         return n && (n & (n - 1)) === 0;
     };
