@@ -256,9 +256,12 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     
     // Ray origin
     //vec3 ori = vec3(sin(iTime) * camDist, 0, cos(iTime) * camDist);
-    float t = 0.;
+    float t = roundf(iTime*.2) - .5;
     vec3 ro = vec3(sin(t), 0.0, cos(t)) * 20.; ;//camDist * normalize(vec3(cos(2.75 - 3.0 * mo.x), 0.7 - 1.0 * (mo.y - 1.0), sin(2.75 - 3.0 * mo.x)));
-    
+    if(iMouse.z > 0.) {
+        ro = vec3(iMouse.x / iResolution.x - .5, iMouse.y / iResolution.y - .5, 1.) * 20.;
+    } 
+     
     float targetDepth = 1.;
     
     // Camera pose.
