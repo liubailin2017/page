@@ -126,278 +126,251 @@ uniform float       iSampleRate;
 #define SHADER_TOY
 
 
-#ifndef MOVIT
-  
-  #define  SHADERTOY
-#endif
+// ------------------------------------------
+//
+// This post cloned from "https://www.shadertoy.com/view/lss3zr"
+//
+// I also refer this blog post below.
+// https://shaderbits.com/blog/creating-volumetric-ray-marcher
+//
+// This post is to learn how to cloud raymarching is working.
+//
+// ------------------------------------------
 
-#ifdef SHADERTOY
-  #define getInput  shadertoyGetInput
-  vec4 shadertoyGetInput(vec2 uv) {
-    return texture(iChannel0,uv);
-  }
-  #define PREFIX(name) name
-#endif
+#define USE_LIGHT 1
 
-#ifdef MOVIT
-#define getInput INPUT
-#endif
+mat3 m = mat3( 0.00,  0.80,  0.60,
+              -0.80,  0.36, -0.48,
+              -0.60, -0.48,  0.64);
 
-//@const
-#ifndef PI
-#define PI  3.141592
-#endif
-const int PREFIX(COL_NUM) = 2;
-const vec3 PREFIX(cols)[PREFIX(COL_NUM)] = vec3[PREFIX(COL_NUM)]( 
- vec3(.99,.80,.40)
-,vec3(.90,.5,.7)
-);
-//@end
-
-//@requisite
-vec2  PREFIX(resolution)  = vec2(800.,800.);
-vec2  PREFIX(FragCoord) = vec2(0.);
-float PREFIX(time) = 0.;
-float PREFIX(duration) = 80.;
-//@end
-
-//@optional
-//@type float
-//@name light
-//@desc 环境亮度
-float PREFIX(light) = .2;  
-
-//@optional
-//@type float
-//@name np
-//@desc 数量每6秒发射的个数
-float PREFIX(np) = 6.;
-
-#ifdef SHADERTOY
-#define texture xxx
-#define gl_FragCoord xxx
-#define iResolution xxx 
-#endif
-
-//@impl
-
-//random value
-vec2 PREFIX(N22)(vec2 p)
+float hash(float n)
 {
-  vec3 a = fract(p.xyx * vec3(123.34, 234.34, 345.65));
-  a += dot(a, a + 34.45);
-  return fract(vec2(a.x * a.y, a.y * a.z));
+    return fract(sin(n) * 43758.5453);
 }
 
-float PREFIX(N21)(vec2 p)
+///
+/// Noise function
+///
+float noise(in vec3 x)
 {
-  vec3 a = fract(p.xyx * vec3(123.34, 234.34, 345.65));
-  return fract( dot(a, a + 34.45) );  
-}
-
-float PREFIX(cheap_star)(vec2 uv, float anim,float r)
-{
-  uv = abs(uv);
-  vec2 pos = min(uv.xy/uv.yx, anim);
-  float p = (2.0 - pos.x - pos.y);
-  return clamp( (1.5+p*(p*p-1.5)) / (uv.x+uv.y),0.,1.) * r;      
-}
-
-vec4 PREFIX(burst0)(vec2 st, vec2 pos, float r, vec3 col)
-{
-  st -= pos;
-  float ani = sin(PREFIX(time) * 12.0) * 0.1 + 1.0;
-  col = PREFIX(cheap_star)(st,ani,r) * col;
-  return vec4(clamp(col,0.,1.),1.);
-}
-
-vec4 PREFIX(burst)(vec2 st, vec2 pos, float r, vec3 col)
-{
-  st -= pos;
-  // r =   pow(r,1.0);
-  /// 发光效果
-  r = (r / length(st)) * .2 ;
-  return  vec4(col*r,1.);
-}
-
-vec4 PREFIX(burst0)(vec2 st, vec2 pos,vec2 pos0,float t, float r, vec3 col)
-{
-  st -= pos;
-  // pos0 = pos - vec2(.1);
-  vec2 v = pos0 - pos;
-  float ang =  3.14 + atan(v.x ,v.y);
-  float len = length(pos0 - pos);
-  mat2 T = mat2(cos(ang),sin(ang),-sin(ang),cos(ang));
-  st = T * st;
-  t *= 5.; 
-  if(st.y < 0.) {
-    st.y *=  (1./(1. + t));
-  }
- 
-  r = (r / length(st)) * .2 ;
-  return  vec4(col*r,1.);
-}
-
-vec4 PREFIX(difflight)(vec2 st, vec2 pos,vec3 col)
-{
-  float l = dot(vec3(0.,0.,1.),normalize( vec3(pos,5.) - vec3(st,0.) ) );
-  return vec4(col * l,1.);
-}
-
-/// s = p0 + ut + 0.5at^2
-/// 距离加速度公式
-// 初速度， 加速度 ，初始位置，时间，角度
-vec2 PREFIX(get_pos)(vec2 u, vec2 a, vec2 p0, float t, float ang)
-{
-  /// 根据初始位置、水平和垂直的速度、加速度来更新当前的位置
-  mat2 T = mat2(cos(ang),sin(ang),-sin(ang),cos(ang));
-  vec2 d = p0 + T * u * t + 0.5 * a * t * t;
-  return d;
-}
-// 
-vec2 PREFIX(get_burstpos)(vec2 u,vec2 u0, vec2 a , vec2 p0, float t, float ang)
-{
-  mat2 T = mat2(cos(ang),sin(ang),-sin(ang),cos(ang));
-  a = T * a;
-  u = T * u + u0;
-  vec2 d =  u * t + 0.5 * a * t * t; 
-  return p0 +   d;
-}
-
-// t 时刻的粒子速度
-// 初速度， 加速度 ，时间，角度
-vec2 PREFIX(get_velocity)(vec2 u, vec2 a , float t, float ang)
-{
-  /// 根据加速度、当前水平和垂直的速度来更新当前的速度
-  mat2 T = mat2(cos(ang),sin(ang),-sin(ang),cos(ang));
-  return T * u + a * t;
-}
-
-vec4 PREFIX(filte)(vec2 uv) {
-  const float snp = 20.;
-  const float R_RATIO = 0.04;
-  const float ACC_RATIO = 0.03;
-  const float ANG = 30.;
-  const vec2 acc = vec2(0.0, -9.8); ///< 重力加速度 acc
-  const float R0 = 2.;
-  vec3 col0 = getInput(uv).xyz;
-  //100m 的场景里播放烟花 
-  uv = 100. * ( (2. * PREFIX(FragCoord).xy - PREFIX(resolution).xy) /  PREFIX(resolution).y );
-  vec2 u = vec2(0.);               
-  
-  float ang =  0.;             ///< 上升粒子的发射角度
-  vec4 particles = vec4(0.0); //particle
-  vec4 dlight = vec4(0.);
-  for (float i = 0.; i < PREFIX(np); i++)
-  {    
-    float sid = i / np * 7.;
-    float t_i = PREFIX(time) - sid;
-    float tid =  floor(t_i / 7.);
-    float r = R0;
-    vec2 rand = PREFIX(N22)(vec2(sid,tid));
-    /// 初始位置
-    vec2 ip = vec2( 100. * sin(30.*rand.x), -60.);
-    /// 初速度
-    u = vec2(44.,0.);
-    ang = radians(90. + ANG * (-1. + PREFIX(N21)(vec2(sid,tid))* 2. ) );   
-
-    t_i =  mod(t_i,7.);
-    if(t_i < 0.) continue;
-    vec2 s = PREFIX(get_pos)(u, acc, ip, t_i, ang);
-    vec2 v = PREFIX(get_velocity)(u, acc, t_i, ang);
-
-    mat2 T = mat2(cos(ang),sin(ang),-sin(ang),cos(ang));
-    // 计算竖直向上的运动时间
-    float t_up = (T * u).y / abs(acc.y);
+    vec3 p = floor(x);
+    vec3 f = fract(x);
     
-    /// 根据时间计算出向上运动的最大高度
-    vec2 h_max = PREFIX(get_pos)(u, acc, ip, t_up, ang);
+    f = f * f * (3.0 - 2.0 * f);
+    
+    float n = p.x + p.y * 57.0 + 113.0 * p.z;
+    
+    float res = mix(mix(mix(hash(n +   0.0), hash(n +   1.0), f.x),
+                        mix(hash(n +  57.0), hash(n +  58.0), f.x), f.y),
+                    mix(mix(hash(n + 113.0), hash(n + 114.0), f.x),
+                        mix(hash(n + 170.0), hash(n + 171.0), f.x), f.y), f.z);
+    return res;
+}
+
+///
+/// Fractal Brownian motion.
+///
+/// Refer to:
+/// EN: https://thebookofshaders.com/13/
+/// JP: https://thebookofshaders.com/13/?lan=jp
+///
+float fbm(vec3 p)
+{
+    float f;
+    f  = 0.5000 * noise(p); p = m * p * 2.02;
+    f += 0.2500 * noise(p); p = m * p * 2.03;
+    f += 0.1250 * noise(p);
+    return f;
+}
+
+//////////////////////////////////////////////////
+
+///
+/// Sphere distance function.
+///
+/// But this function return inverse value.
+/// Normal dist function is like below.
+/// 
+/// return length(pos) - 0.1;
+///
+/// Because this function is used for density.
+///
+
+float sdTorus( vec3 p, vec2 t )
+{
+  vec2 q = vec2(length(p.xz)-t.x,p.y);
+  return length(q)-t.y;
+}
+
+float heartShape(vec3 p, float rad) { 
+    p.z = p.z * 2.;
+    float z = p.z * (2.0 - p.y / 15.0) ;
+    float y = 1.3 * p.y - abs(p.x) * sqrt(1.0 - abs(p.x));
+    vec3 p2 = vec3(p.x, y, p.z);
+    return (length(p2) - rad) ;
+}
+
+float sdBox( vec3 p, vec3 b )
+{
+    return heartShape(p * .01,.1)*100.;
+    vec3 q = abs(p) - b;
+    return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0);
+}
+float roundf (float v) {
+    return abs(fract((v-1.)/2.)-.5)*2.;
+}
+float scene(in vec3 pos)
+{
+    return mix( ( 1. -  heartShape(pos*.1,.5) * 3.)   +  fbm(pos*.8 + iTime  ), ( 1. - (length(pos /5. ) - 1.)   )   + fbm(pos * 0.3 + .3 * iTime ),1. - clamp( 2. * roundf(iTime*.4),0.,1.)); 
+    return  ( 1. -  heartShape(pos*.1,.5) * 3.)   +  fbm(pos*.8 + iTime  );
+    // return .1 * ( 10. - sdBox(pos   ,vec3(3.3) ) ) ;// + fbm(pos * 0.3 + .3 * iTime );
+    return  ( 1. - (length(pos /5. ) - 1.)   )   + fbm(pos * 0.3 + .3 * iTime );
+    return 0.1 - length(pos) * 0.05 + fbm(pos * 0.3);
+}
+
  
-    if (t_i - t_up > 0. ) { ///< 下落速度超过一定大小则消失
-      r = 0.0;     
-    }else {
-      vec3 pcol = PREFIX(cols)[int(rand.y*float(PREFIX(COL_NUM)))];
-      vec2 t = PREFIX(get_pos)(u, acc, ip, t_i - .1, ang);
-      particles += PREFIX(burst0)(uv, s,t,(  t_up - t_i)/t_up , R0 , pcol); 
-      dlight += PREFIX(difflight)(uv,s,pcol);
-    }
+///
+/// Create a camera pose control matrix.
+///
+mat3 camera(vec3 ro, vec3 ta)
+{
+    vec3 cw = normalize(ta - ro);//z
+    vec3 cp = vec3(0.0, 1.0, 0.0);
+    vec3 cu = cross(cw, cp); //x 
+    vec3 cv = cross(cu, cw); // y 
+    return mat3(cu, cv, cw);
+}
 
-    // 到最高点是爆炸
-    if (t_i - t_up  > 0.  && t_i - t_up < 2.) // 炸2秒
+ 
+void mainImage(out vec4 fragColor, in vec2 fragCoord)
+{
+    vec2 uv = (fragCoord.xy * 2.0 - iResolution.xy) / min(iResolution.x, iResolution.y);
+    
+    vec2 mo = vec2(0.,1.);
+    
+    // Camera
+    float camDist = 25.0;
+    
+    // target
+    vec3 ta = vec3(0.0, 0.0, 0.0);
+    
+    // Ray origin
+    //vec3 ori = vec3(sin(iTime) * camDist, 0, cos(iTime) * camDist);
+    float t = 0.;
+    vec3 ro = vec3(sin(t), 0.0, cos(t)) * 20.; ;//camDist * normalize(vec3(cos(2.75 - 3.0 * mo.x), 0.7 - 1.0 * (mo.y - 1.0), sin(2.75 - 3.0 * mo.x)));
+    
+    float targetDepth = 1.;
+    
+    // Camera pose.
+    mat3 c = camera(ro, ta);
+    vec3 dir = c * normalize(vec3(uv, targetDepth));
+    
+    // For raymarching const values.
+    const int sampleCount = 64;
+    const int sampleLightCount = 6;
+    const float eps = 0.0001;
+    
+    // Raymarching step settings.
+    float zMax = 40.0;
+    float zstep = zMax / float(sampleCount);
+    
+    float zMaxl = 20.0;
+    float zstepl = zMaxl / float(sampleLightCount);
+    
+ 
+    vec3 p = ro;
+    
+ 
+    float T = 1.0;
+ 
+    float absorption = 100.0;
+    
+ 
+    vec3 sun_direction = normalize(vec3(1.0, 0.0, 0.0));
+    
+ 
+    vec4 color = vec4(0.0);
+    
+    for (int i = 0; i < sampleCount; i++)
     {
-      /// 把一个圆根据角度分成若干份扇形
-      float unit = (360. / snp);
-      for (float j = 0.0; j < snp; j++)
-      {
-        float ang = radians(j * unit);
-        float r  = 1. - .5 * (t_i - t_up) ;
-        vec2 v0 = vec2(PREFIX(N21)(vec2(ang ,sid + tid))*.5 + .5,0.) * 50.;
-        vec2 S = PREFIX(get_burstpos)(v0,v, vec2(-12.5,0.) , h_max, t_i - t_up, ang);
-        vec2 rand = PREFIX(N22)(vec2(i));
-        vec3 pcol = PREFIX(cols)[int(rand.y*float(PREFIX(COL_NUM)))];
-        particles += PREFIX(burst)(uv, S, max(0.0, r), pcol);
-        dlight += PREFIX(difflight)(uv,S,pcol/snp);
-      }
+ 
+        float density = scene(p);
+        
+  
+        if (density > 0.0)
+        {
+            float tmp = density / float(sampleCount);
+            
+            T *= ( 1.0 - (tmp * absorption) );
+            
+            // Return if transmittance under 0.01. 
+            // Because the ray is almost absorbed.
+            if (T <= 0.01)
+            {
+                break;
+            }
+            
+            // #if USE_LIGHT == 1
+            // // Light scattering
+            
+            // // Transmittance for Light
+            // float Tl = 1.0;
+            
+            // // Start light scattering with raymarching.
+            
+            // // Raymarching position for the light.
+            // vec3 lp = p;
+            
+            // // Iteration of sampling light.
+            // for (int j = 0; j < sampleLightCount; j++)
+            // {
+            //     float densityLight = scene(lp);
+                
+            //     // If densityLight is over 0.0, the ray is stil in the cloud.
+            //     if (densityLight > 0.0)
+            //     {
+            //         float tmpl = densityLight / float(sampleCount);
+            //         Tl *= 1.0 - (tmpl * absorption);
+            //     }
+                
+            //     if (Tl <= 0.01)
+            //     {
+            //         break;
+            //     }
+                
+            //     // Step to next position.
+            //     lp += sun_direction * zstepl;
+            // }
+            // #endif
+            
+            // Add ambient + light scattering color
+            float opaity = 50.0;
+            float k = opaity * tmp * T;
+            vec4 cloudColor = vec4(2.,1.1,1.6,1.);
+            vec4 col1 = cloudColor * k;
+            
+            // #if USE_LIGHT == 1
+            // float opacityl = 30.0;
+            // float kl = opacityl * tmp * T * Tl;
+            // vec4 lightColor = vec4(1.0, 0.7, 0.9, 1.0);
+            // vec4 col2 = lightColor * kl;
+            // #else
+            vec4 col2 = vec4(0.0);
+            // #endif
+            
+            color += col1 + col2;
+        }
+        
+        p += dir * zstep;
     }
-  }
-  return vec4( clamp( col0 * clamp( (dlight.rgb + vec3(PREFIX(light))),0.,1.) +  particles.rgb ,0.,1.) ,  1.0);
-}
-
-//@end
-#ifdef SHADERTOY
-
-#undef texture 
-#undef gl_FragCoord 
-#undef iResolution  
-
-void mainImage( out vec4 fragColor, in vec2 fragCoord )
-{
+    
+    vec4 bg = texture(iChannel0,uv);
   
-  resolution = iResolution.xy;
-  time = fract(iTime/PREFIX(duration)) * PREFIX(duration);//@0
-  FragCoord = fragCoord.xy;
-  vec2 uv = fragCoord/iResolution.xy;
-  fragColor = filte(uv );
-}
-#endif
-
-#ifdef MOVIT
-
-vec4 FUNCNAME(vec2 tc)
-{
-// @param
-#ifdef PREFIX(DEF_mov_time)
-  PREFIX(time) = PREFIX(mov_time);
-#endif
-
-#ifdef PREFIX(DEF_mov_width)
-  PREFIX(resolution).x = PREFIX(mov_width);
-#endif
-
-#ifdef PREFIX(DEF_mov_height) 
-  PREFIX(resolution).y = PREFIX(mov_height);
-#endif
-//@end
-
-//@opt
-#ifdef PREFIX(DEF_mov_light)
-  PREFIX(light) = PREFIX(mov_light);
-#endif
-
-#ifdef PREFIX(DEF_mov_np)
-  PREFIX(np) = PREFIX(np);
-#endif
-
-//@end
-
-  PREFIX(FragCoord) = PREFIX(resolution) * tc;
-  return PREFIX(filte)(tc);
+    color.a = 1.;
+    color *= 2.;
+	fragColor =1. - (1. - color) * ( 1. - bg);
 }
 
-#endif
-
-
-  
 void main() {
     vec2 fragCoord = gl_FragCoord.xy;
     mainImage(gl_FragColor, fragCoord);
