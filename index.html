@@ -221,7 +221,7 @@ float roundf (float v) {
 }
 float scene(in vec3 pos)
 {
-    return mix( ( 1. -  heartShape(pos*.1,.5) * 3.)   +  fbm(pos*.8 + iTime  ), ( 1. - (length(pos /5. ) - 1.)   )   + fbm(pos * 0.3 + .3 * iTime ),1. - clamp( 2. * roundf(iTime*.4),0.,1.)); 
+    return mix( ( 1. -  heartShape(pos*.1,.5) * 3.)   +  fbm(pos*.8 + iTime  ), ( 1. - (length(pos /5. ) - 1.)   )   + fbm(pos * 0.3 + .3 * iTime ),1. - clamp( 2. * roundf(iTime*.6),0.,1.)); 
     return  ( 1. -  heartShape(pos*.1,.5) * 3.)   +  fbm(pos*.8 + iTime  );
     // return .1 * ( 10. - sdBox(pos   ,vec3(3.3) ) ) ;// + fbm(pos * 0.3 + .3 * iTime );
     return  ( 1. - (length(pos /5. ) - 1.)   )   + fbm(pos * 0.3 + .3 * iTime );
