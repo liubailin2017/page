@@ -125,82 +125,42 @@ uniform float       iSampleRate;
 
 #define SHADER_TOY
 
-
-// ------------------------------------------
-//
-// This post cloned from "https://www.shadertoy.com/view/lss3zr"
-//
-// I also refer this blog post below.
-// https://shaderbits.com/blog/creating-volumetric-ray-marcher
-//
-// This post is to learn how to cloud raymarching is working.
-//
-// ------------------------------------------
-
-#define USE_LIGHT 1
-
+//-----------------------------------------------------------------------------
+// Maths utils
+//-----------------------------------------------------------------------------
 mat3 m = mat3( 0.00,  0.80,  0.60,
               -0.80,  0.36, -0.48,
-              -0.60, -0.48,  0.64);
-
-float hash(float n)
+              -0.60, -0.48,  0.64 );
+float hash( float n )
 {
-    return fract(sin(n) * 43758.5453);
+    return fract(sin(n)*43758.5453);
 }
 
-///
-/// Noise function
-///
-float noise(in vec3 x)
+float noise( in vec3 x )
 {
     vec3 p = floor(x);
     vec3 f = fract(x);
-    
-    f = f * f * (3.0 - 2.0 * f);
-    
-    float n = p.x + p.y * 57.0 + 113.0 * p.z;
-    
-    float res = mix(mix(mix(hash(n +   0.0), hash(n +   1.0), f.x),
-                        mix(hash(n +  57.0), hash(n +  58.0), f.x), f.y),
-                    mix(mix(hash(n + 113.0), hash(n + 114.0), f.x),
-                        mix(hash(n + 170.0), hash(n + 171.0), f.x), f.y), f.z);
+
+    f = f*f*(3.0-2.0*f);
+
+    float n = p.x + p.y*57.0 + 113.0*p.z;
+
+    float res = mix(mix(mix( hash(n+  0.0), hash(n+  1.0),f.x),
+                        mix( hash(n+ 57.0), hash(n+ 58.0),f.x),f.y),
+                    mix(mix( hash(n+113.0), hash(n+114.0),f.x),
+                        mix( hash(n+170.0), hash(n+171.0),f.x),f.y),f.z);
     return res;
 }
 
-///
-/// Fractal Brownian motion.
-///
-/// Refer to:
-/// EN: https://thebookofshaders.com/13/
-/// JP: https://thebookofshaders.com/13/?lan=jp
-///
-float fbm(vec3 p)
+float fbm( vec3 p )
 {
     float f;
-    f  = 0.5000 * noise(p); p = m * p * 2.02;
-    f += 0.2500 * noise(p); p = m * p * 2.03;
-    f += 0.1250 * noise(p);
+    f  = 0.5000*noise( p ); p = m*p*2.02;
+    f += 0.2500*noise( p ); p = m*p*2.03;
+    f += 0.1250*noise( p );
     return f;
 }
 
-//////////////////////////////////////////////////
-
-///
-/// Sphere distance function.
-///
-/// But this function return inverse value.
-/// Normal dist function is like below.
-/// 
-/// return length(pos) - 0.1;
-///
-/// Because this function is used for density.
-///
-
-float sdTorus( vec3 p, vec2 t )
-{
-  vec2 q = vec2(length(p.xz)-t.x,p.y);
-  return length(q)-t.y;
-}
 
 float heartShape(vec3 p, float rad) { 
     p.z = p.z * 2.;
@@ -209,170 +169,81 @@ float heartShape(vec3 p, float rad) {
     vec3 p2 = vec3(p.x, y, p.z);
     return (length(p2) - rad) ;
 }
-
-float sdBox( vec3 p, vec3 b )
-{
-    return heartShape(p * .01,.1)*100.;
-    vec3 q = abs(p) - b;
-    return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0);
-}
+ 
 float roundf (float v) {
     return abs(fract((v-1.)/2.)-.5)*2.;
 }
 float scene(in vec3 pos)
 {
-    return mix( ( 1. -  heartShape(pos*.1,.5) * 3.)   +  fbm(pos*.8 + iTime  ), ( 1. - (length(pos /5. ) - 1.)   )   + fbm(pos * 0.3 + .3 * iTime ),1. - clamp( 2. * roundf(iTime*.6),0.,1.)); 
-    return  ( 1. -  heartShape(pos*.1,.5) * 3.)   +  fbm(pos*.8 + iTime  );
-    // return .1 * ( 10. - sdBox(pos   ,vec3(3.3) ) ) ;// + fbm(pos * 0.3 + .3 * iTime );
-    return  ( 1. - (length(pos /5. ) - 1.)   )   + fbm(pos * 0.3 + .3 * iTime );
-    return 0.1 - length(pos) * 0.05 + fbm(pos * 0.3);
-}
-
- 
-///
-/// Create a camera pose control matrix.
-///
-mat3 camera(vec3 ro, vec3 ta)
-{
-    vec3 cw = normalize(ta - ro);//z
-    vec3 cp = vec3(0.0, 1.0, 0.0);
-    vec3 cu = cross(cw, cp); //x 
-    vec3 cv = cross(cu, cw); // y 
-    return mat3(cu, cv, cw);
-}
-
- 
-void mainImage(out vec4 fragColor, in vec2 fragCoord)
-{
-    vec2 uv = (fragCoord.xy * 2.0 - iResolution.xy) / min(iResolution.x, iResolution.y);
-    
-    vec2 mo = vec2(0.,1.);
-    
-    // Camera
-    float camDist = 25.0;
-    
-    // target
-    vec3 ta = vec3(0.0, 0.0, 0.0);
-    
-    // Ray origin
-    //vec3 ori = vec3(sin(iTime) * camDist, 0, cos(iTime) * camDist);
-    float t = roundf(iTime*.2) - .5;
-    vec3 ro = vec3(sin(t), 0.0, cos(t)) * 20.; ;//camDist * normalize(vec3(cos(2.75 - 3.0 * mo.x), 0.7 - 1.0 * (mo.y - 1.0), sin(2.75 - 3.0 * mo.x)));
-    if(iMouse.z > 0.) {
-        ro = vec3(iMouse.x / iResolution.x - .5, iMouse.y / iResolution.y - .5, 1.) * 20.;
-    } 
-     
-    float targetDepth = 1.;
-    
-    // Camera pose.
-    mat3 c = camera(ro, ta);
-    vec3 dir = c * normalize(vec3(uv, targetDepth));
-    
-    // For raymarching const values.
-    const int sampleCount = 64;
-    const int sampleLightCount = 6;
-    const float eps = 0.0001;
-    
-    // Raymarching step settings.
-    float zMax = 40.0;
-    float zstep = zMax / float(sampleCount);
-    
-    float zMaxl = 20.0;
-    float zstepl = zMaxl / float(sampleLightCount);
-    
- 
-    vec3 p = ro;
-    
- 
-    float T = 1.0;
- 
-    float absorption = 100.0;
-    
- 
-    vec3 sun_direction = normalize(vec3(1.0, 0.0, 0.0));
-    
- 
-    vec4 color = vec4(0.0);
-    
-    for (int i = 0; i < sampleCount; i++)
-    {
- 
-        float density = scene(p);
-        
+    return mix( ( 1. -  heartShape(pos*.1,.3) * 3.)   +  fbm(pos*.8 + iTime  ), ( 1. - (length(pos /5. ) - 1.)   )   + fbm(pos * 0.3 + .3 * iTime ), .6*( 1. - clamp( 2. * roundf(iTime*.6),0.,1.))); 
   
-        if (density > 0.0)
-        {
-            float tmp = density / float(sampleCount);
-            
-            T *= ( 1.0 - (tmp * absorption) );
-            
-            // Return if transmittance under 0.01. 
-            // Because the ray is almost absorbed.
-            if (T <= 0.01)
-            {
-                break;
-            }
-            
-            // #if USE_LIGHT == 1
-            // // Light scattering
-            
-            // // Transmittance for Light
-            // float Tl = 1.0;
-            
-            // // Start light scattering with raymarching.
-            
-            // // Raymarching position for the light.
-            // vec3 lp = p;
-            
-            // // Iteration of sampling light.
-            // for (int j = 0; j < sampleLightCount; j++)
-            // {
-            //     float densityLight = scene(lp);
-                
-            //     // If densityLight is over 0.0, the ray is stil in the cloud.
-            //     if (densityLight > 0.0)
-            //     {
-            //         float tmpl = densityLight / float(sampleCount);
-            //         Tl *= 1.0 - (tmpl * absorption);
-            //     }
-                
-            //     if (Tl <= 0.01)
-            //     {
-            //         break;
-            //     }
-                
-            //     // Step to next position.
-            //     lp += sun_direction * zstepl;
-            // }
-            // #endif
-            
-            // Add ambient + light scattering color
-            float opaity = 50.0;
-            float k = opaity * tmp * T;
-            vec4 cloudColor = vec4(2.,1.1,1.6,1.);
-            vec4 col1 = cloudColor * k;
-            
-            // #if USE_LIGHT == 1
-            // float opacityl = 30.0;
-            // float kl = opacityl * tmp * T * Tl;
-            // vec4 lightColor = vec4(1.0, 0.7, 0.9, 1.0);
-            // vec4 col2 = lightColor * kl;
-            // #else
-            vec4 col2 = vec4(0.0);
-            // #endif
-            
-            color += col1 + col2;
-        }
-        
-        p += dir * zstep;
+}
+void mainImage( out vec4 fragColor, in vec2 fragCoord )
+{
+	vec2 q = fragCoord.xy / iResolution.xy;
+    vec2 v = -1.0 + 2.0*q;
+    v.x *= iResolution.x / iResolution.y;
+
+    vec2 mo = vec2(iTime*.1,cos(iTime*.25)*3.);
+	if(iMouse.z > .5) {
+        mo = -1.0 + 2.0*iMouse.xy / iResolution.xy;
     }
-    
-    vec4 bg = texture(iChannel0,uv);
-  
-    color.a = 1.;
-    color *= 2.;
-	fragColor =1. - (1. - color) * ( 1. - bg);
+ 
+
+    // camera by iq
+    vec3 org = 25.0*normalize(vec3(cos(2.75-3.0*mo.x), 0., sin(2.75-3.0*mo.x)));
+	vec3 ta = vec3(0.0, 0.0, 0.0);
+    vec3 ww = normalize( ta - org);
+    vec3 uu = normalize(cross( vec3(0.0,1.0,0.0), ww )); // 右
+    vec3 vv = normalize(cross(ww,uu)); // 上
+    vec3 dir = normalize( v.x*uu + v.y*vv + 1.5*ww );
+	vec4 color = vec4(.0);
+	
+	
+	
+	const int nbSample = 80;
+	const int nbSampleLight = 6;
+	
+	float zMax         = 40.;
+	float step         = zMax/float(nbSample);
+	float zMaxl         = 20.;
+	float stepl         = zMaxl/float(nbSampleLight);
+    vec3 p             = org;
+    float T            = 1.;
+    float absorption   = 100.;
+	vec3 sun_direction = normalize( vec3(-1.,0.,0.) );
+
+	for(int i=0; i<nbSample; i++)
+	{
+		float density = scene(p);
+		if(density>0.)
+		{
+			float tmp = density / float(nbSample);
+			T *= (1. - tmp * absorption);
+            // T -= tmp * absorption;
+			if( T <= 0.01)
+				break;
+				
+			 //Light scattering
+			float Tl = 1.0;
+			for(int j=0; j<nbSampleLight; j++)
+			{
+				float densityLight = scene( p + normalize(sun_direction)*float(j)*stepl);
+				if(densityLight>0.)
+                	Tl *= ( 1. -  densityLight * absorption/float(nbSample) );
+                if (Tl <= 0.01)
+                    break;
+			}
+			color += (  vec4(1.8,1.4,.0,0.) * 50. * tmp * T +  vec4(1.,.2,.1,0.) * 80. * tmp * T   * Tl );
+		}
+		p += dir*step;
+	}
+
+    fragColor = color;
+    fragColor.a = 1.;
+
 }
+
 
 void main() {
     vec2 fragCoord = gl_FragCoord.xy;
