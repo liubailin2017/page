@@ -234,7 +234,8 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
                 if (Tl <= 0.01)
                     break;
 			}
-			color += (  vec4(1.8,1.4,.0,0.) * 50. * tmp * T +  vec4(1.,.2,.1,0.) * 80. * tmp * T   * Tl );
+			 color += (  vec4(1.,1.,1.,0.) * 50. * tmp * T +  vec4(1.,.2,.1,0.) * 80. * tmp * T   * Tl );
+
 		}
 		p += dir*step;
 	}
