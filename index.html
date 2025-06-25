@@ -97,7 +97,7 @@
 
 <!-- Shaders -->
 
-<script id='c:/Users/liuba/Desktop/shader/fire0.glsl' type='x-shader/x-fragment'>
+<script id='c:/Users/liuba/Desktop/RES-cl-up/RES-cl/src/movit/custom/filter/shadow19.glsl' type='x-shader/x-fragment'>
 uniform vec3        iResolution;
 uniform float       iTime;
 uniform float       iTimeDelta;
@@ -125,133 +125,293 @@ uniform float       iSampleRate;
 
 #define SHADER_TOY
 
-//-----------------------------------------------------------------------------
-// Maths utils
-//-----------------------------------------------------------------------------
-mat3 m = mat3( 0.00,  0.80,  0.60,
-              -0.80,  0.36, -0.48,
-              -0.60, -0.48,  0.64 );
-float hash( float n )
-{
-    return fract(sin(n)*43758.5453);
+
+#ifndef MOVIT
+#define  SHADERTOY
+#endif
+
+#ifdef SHADERTOY
+ //@0 
+#define PREFIX(name) name
+#define getInput  shadertoyGetInput
+vec4 shadertoyGetInput(vec2 uv) {
+  vec4 rst = texture(iChannel0 ,uv);
+  rst.rgb = pow(rst.rgb,vec3(2.2));
+  return rst;
 }
 
-float noise( in vec3 x )
+#endif
+
+#ifdef MOVIT
+vec4 PREFIX(GetInput_Gmmafix)(vec2 uv) {
+	vec4 rst = INPUT(uv);
+	return rst;
+}
+
+#ifdef getInput
+#undef getInput
+#endif
+#define getInput   PREFIX(GetInput_Gmmafix)
+#endif
+
+//@const
+#ifndef PI
+#define PI  3.141592
+#endif
+//@end
+
+//@requisite
+vec2  PREFIX(resolution) = vec2(300.,300.);
+vec2  PREFIX(FragCoord) = vec2(0.);
+float PREFIX(time) = 0.;
+float PREFIX(duration) = 40.;
+vec2 PREFIX(pos) = vec2(0.,0.);
+float PREFIX(angle) = 0.;
+vec2 PREFIX(res) = vec2(300.,300.);
+
+//@end
+ 
+//@info
+//@title 电光爱心
+//@creator lbl
+//@desc  no desc
+//@notes 旧版滤镜
+//@version 0.0.1
+//@end
+
+//@optional
+
+//@type float
+//@name strength
+//@def .3
+//@max 1.0
+//@min 0.0
+//@keyframe 1
+//@desc 强度
+float PREFIX(strength) = .55; 
+
+//@type float
+//@name light
+//@def .4
+//@max 1.0
+//@min 0.0
+//@keyframe 1
+//@desc 亮度
+float PREFIX(light) = .2; 
+
+//@type float
+//@name color
+//@def 0.5
+//@max 1.0
+//@min 0.0
+//@keyframe 1
+//@desc 颜色
+float PREFIX(color) = .5; 
+
+//@type float
+//@name size
+//@def .4
+//@max 1.0
+//@min 0.0
+//@keyframe 1
+//@desc 大小
+float PREFIX(size) = .6; 
+
+//@end
+
+#ifdef SHADERTOY
+#define texture xxx
+#define gl_FragCoord xxx
+#define iResolution xxx 
+#endif
+
+//@impl
+#ifndef saturate
+#define saturate(x) clamp(x, 0.0, 1.0)
+#endif
+float uTime = 0.;
+ 
+#define UI0 1597334673U
+#define UI1 3812015801U
+#define UI2 uvec2(UI0, UI1)
+#define UI3 uvec3(UI0, UI1, 2798796415U)
+#define UIF (1.0 / float(0xffffffffU))
+
+vec3 rand33(vec3 p)
 {
+	uvec3 q = uvec3(ivec3(p)) * UI3;
+	q = (q.x ^ q.y ^ q.z)*UI3;
+	return -1. + 2. * vec3(q) * UIF;
+}
+
+// Gradient noise by iq (modified to be tileable)
+// 梯度噪声 
+float gnoise(vec3 x)
+{
+    float freq = 800.;
+    // grid
     vec3 p = floor(x);
-    vec3 f = fract(x);
+    vec3 w = fract(x);
+    
+    // quintic interpolant
+    vec3 u = w * w * w * (w * (w * 6. - 15.) + 10.);
 
-    f = f*f*(3.0-2.0*f);
-
-    float n = p.x + p.y*57.0 + 113.0*p.z;
-
-    float res = mix(mix(mix( hash(n+  0.0), hash(n+  1.0),f.x),
-                        mix( hash(n+ 57.0), hash(n+ 58.0),f.x),f.y),
-                    mix(mix( hash(n+113.0), hash(n+114.0),f.x),
-                        mix( hash(n+170.0), hash(n+171.0),f.x),f.y),f.z);
-    return res;
-}
-
-float fbm( vec3 p )
-{
-    float f;
-    f  = 0.5000*noise( p ); p = m*p*2.02;
-    f += 0.2500*noise( p ); p = m*p*2.03;
-    f += 0.1250*noise( p );
-    return f;
-}
-
-
-float heartShape(vec3 p, float rad) { 
-    p.z = p.z * 2.;
-    float z = p.z * (2.0 - p.y / 15.0) ;
-    float y = 1.3 * p.y - abs(p.x) * sqrt(1.0 - abs(p.x));
-    vec3 p2 = vec3(p.x, y, p.z);
-    return (length(p2) - rad) ;
+    // gradients
+    vec3 ga = rand33(mod(p + vec3(0., 0., 0.), freq));
+    vec3 gb = rand33(mod(p + vec3(1., 0., 0.), freq));
+    vec3 gc = rand33(mod(p + vec3(0., 1., 0.), freq));
+    vec3 gd = rand33(mod(p + vec3(1., 1., 0.), freq));
+    vec3 ge = rand33(mod(p + vec3(0., 0., 1.), freq));
+    vec3 gf = rand33(mod(p + vec3(1., 0., 1.), freq));
+    vec3 gg = rand33(mod(p + vec3(0., 1., 1.), freq));
+    vec3 gh = rand33(mod(p + vec3(1., 1., 1.), freq));
+    
+    // projections
+    float va = dot(ga, w - vec3(0., 0., 0.));
+    float vb = dot(gb, w - vec3(1., 0., 0.));
+    float vc = dot(gc, w - vec3(0., 1., 0.));
+    float vd = dot(gd, w - vec3(1., 1., 0.));
+    float ve = dot(ge, w - vec3(0., 0., 1.));
+    float vf = dot(gf, w - vec3(1., 0., 1.));
+    float vg = dot(gg, w - vec3(0., 1., 1.));
+    float vh = dot(gh, w - vec3(1., 1., 1.));
+	
+    // interpolation
+    return va + 
+           u.x * (vb - va) + 
+           u.y * (vc - va) + 
+           u.z * (ve - va) + 
+           u.x * u.y * (va - vb - vc + vd) + 
+           u.y * u.z * (va - vc - ve + vg) + 
+           u.z * u.x * (va - vb - ve + vf) + 
+           u.x * u.y * u.z * (-va + vb + vc - vd + ve - vf - vg + vh);
 }
  
-float roundf (float v) {
-    return abs(fract((v-1.)/2.)-.5)*2.;
-}
-float scene(in vec3 pos)
-{
-    return mix( ( 1. -  heartShape(pos*.1,.3) * 3.)   +  fbm(pos*.8 + iTime  ), ( 1. - (length(pos /5. ) - 1.)   )   + fbm(pos * 0.3 + .3 * iTime ), .6*( 1. - clamp( 2. * roundf(iTime*.6),0.,1.))); 
-  
-}
-void mainImage( out vec4 fragColor, in vec2 fragCoord )
-{
-	vec2 q = fragCoord.xy / iResolution.xy;
-    vec2 v = -1.0 + 2.0*q;
-    v.x *= iResolution.x / iResolution.y;
-
-    vec2 mo = vec2(iTime*.1,cos(iTime*.25)*3.);
-	if(iMouse.z > .5) {
-        mo = -1.0 + 2.0*iMouse.xy / iResolution.xy;
+#define OCTAVES 6
+float fbm (vec3 st) {
+    // Initial values
+    float value = 0.0;
+    float amplitude = .5;
+    float frequency = 0.;
+    //
+    // Loop of octaves
+    for (int i = 0; i < OCTAVES; i++) {
+        value += amplitude * gnoise(st);
+        st *= 2.;
+        amplitude *= .5;
     }
- 
-
-    // camera by iq
-    vec3 org = 25.0*normalize(vec3(cos(2.75-3.0*mo.x), 0., sin(2.75-3.0*mo.x)));
-	vec3 ta = vec3(0.0, 0.0, 0.0);
-    vec3 ww = normalize( ta - org);
-    vec3 uu = normalize(cross( vec3(0.0,1.0,0.0), ww )); // 右
-    vec3 vv = normalize(cross(ww,uu)); // 上
-    vec3 dir = normalize( v.x*uu + v.y*vv + 1.5*ww );
-	vec4 color = vec4(.0);
-	
-	
-	
-	const int nbSample = 80;
-	const int nbSampleLight = 6;
-	
-	float zMax         = 40.;
-	float step         = zMax/float(nbSample);
-	float zMaxl         = 20.;
-	float stepl         = zMaxl/float(nbSampleLight);
-    vec3 p             = org;
-    float T            = 1.;
-    float absorption   = 100.;
-	vec3 sun_direction = normalize( vec3(-1.,0.,0.) );
-
-	for(int i=0; i<nbSample; i++)
-	{
-		float density = scene(p);
-		if(density>0.)
-		{
-			float tmp = density / float(nbSample);
-			T *= (1. - tmp * absorption);
-            // T -= tmp * absorption;
-			if( T <= 0.01)
-				break;
-				
-			 //Light scattering
-			float Tl = 1.0;
-			for(int j=0; j<nbSampleLight; j++)
-			{
-				float densityLight = scene( p + normalize(sun_direction)*float(j)*stepl);
-				if(densityLight>0.)
-                	Tl *= ( 1. -  densityLight * absorption/float(nbSample) );
-                if (Tl <= 0.01)
-                    break;
-			}
-			 color += (  vec4(1.,1.,1.,0.) * 50. * tmp * T +  vec4(1.,.2,.1,0.) * 80. * tmp * T   * Tl );
-
-		}
-		p += dir*step;
-	}
-
-    fragColor = color;
-    fragColor.a = 1.;
-
+    return value;
 }
 
+float dot2( in vec2 v ) { return dot(v,v); }
+float sdHeart( in vec2 p )
+{
+    p.x = abs(p.x);
+
+    if( p.y+p.x>1.0 )
+        return sqrt(dot2(p-vec2(0.25,0.75))) - sqrt(2.0)/4.0;
+    return sqrt(min(dot2(p-vec2(0.00,1.00)),
+                    dot2(p-0.5*max(p.x+p.y,0.0)))) * sign(p.x-p.y);
+}
+
+vec3 hsv2rgb(vec3 c) {
+	vec4 K=vec4(1.,2./3.,1./3.,3.);
+	return c.z*mix(K.xxx,saturate(abs(fract(c.x+K.xyz)*6.-K.w)-K.x),c.y);
+}
+
+vec4 generateLightning(vec2 uv,float d)
+{
+ 
+
+ 
+  vec3 p3 = vec3(uv, uTime*0.4);    
+  float intensity = fbm(vec3(p3*10.0 ));                  
+  float t =  clamp(mix(.01,.05,PREFIX(light))  / abs(d + intensity*  mix(.02,0.5,PREFIX(strength))),0.,1.);
+  t = pow(t,2.);
+  vec3 hsv = vec3(PREFIX(color),1.,1.);
+  hsv = hsv2rgb(hsv); 
+  vec3 col = hsv   ;
+ 
+  return  vec4(col* t,1.) ;
+}
+
+vec4 PREFIX(filt)(vec2 uv) {
+  float ratio = PREFIX(resolution).x / PREFIX(resolution).y;
+  uTime = PREFIX(time) * 1.5;
+  vec2 uv1 = ( (uv*2.0-vec2(1.0))  + vec2(0.,.5) ) * vec2(ratio,1.);
+  uv1 = uv1 / ( .1 + 1.5* PREFIX(size));
+  float d = sdHeart(uv1);
+  vec4 resultColor = generateLightning(uv1,d);
+  vec4 col = vec4(vec3(0.),1.); 
+  col = col * smoothstep(0.,0.02,-d);
+  
+  resultColor = resultColor + col * (1. - resultColor.a);
+  return resultColor;
+}
+
+//@end
+#ifdef SHADERTOY
+
+#undef texture 
+#undef gl_FragCoord 
+#undef iResolution  
 
 void main() {
-    vec2 fragCoord = gl_FragCoord.xy;
-    mainImage(gl_FragColor, fragCoord);
+  resolution = iResolution.xy;
+  time = fract(iTime/PREFIX(duration)) * PREFIX(duration);//@0
+  FragCoord = gl_FragCoord.xy;
+  vec2 uv = (gl_FragCoord.xy / iResolution.xy) ;
+  gl_FragColor = filt(uv ); gl_FragColor.rgb = pow(gl_FragColor.rgb,vec3(1./2.2));
 }
-</script>
+#endif
 
+#ifdef MOVIT
+
+vec4 FUNCNAME(vec2 tc)
+{
+// @param
+#ifdef PREFIX(DEF_mov_time)
+  PREFIX(time) = PREFIX(mov_time);
+#endif
+
+#ifdef PREFIX(DEF_mov_width)
+  PREFIX(resolution).x = PREFIX(mov_width);
+#endif
+
+#ifdef PREFIX(DEF_mov_height ) 
+  PREFIX(resolution).y = PREFIX(mov_height);
+#endif
+
+#ifdef PREFIX(DEF_mov_pos) 
+  PREFIX(pos) = PREFIX(mov_pos);
+#endif
+
+#ifdef PREFIX(DEF_mov_angle) 
+  PREFIX(angle) = PREFIX(mov_angle);
+#endif
+
+#ifdef PREFIX(DEF_mov_input_size) 
+  PREFIX(res) = PREFIX(mov_input_size);
+#else
+  PREFIX(res) = PREFIX(resolution);
+#endif
+//@end
+
+//@opt
+ 
+//@end
+
+  PREFIX(FragCoord) = PREFIX(resolution) * tc;
+    vec4 rslt = PREFIX(filt)(tc);
+  
+  return rslt;
+}
+
+#endif
+
+ 
+
+</script>
 <!-- FlyControls -->
 
 <script type="text/javascript">
