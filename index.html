@@ -333,7 +333,7 @@ vec4 generateLightning(vec2 uv,float d)
   float intensity = fbm(vec3(p3*10.0 ));                  
   float t =  clamp(mix(.01,.05,PREFIX(light))  / abs(d + intensity*  mix(.02,0.5,PREFIX(strength))),0.,1.);
   t = pow(t,2.);
-  vec3 hsv = vec3(PREFIX(color),1.,1.);
+  vec3 hsv = vec3(.0,.85,.999);
   hsv = hsv2rgb(hsv); 
   vec3 col = hsv   ;
  
